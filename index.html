@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>万物修理铺</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#1a1410;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:"Courier New",monospace;overflow:hidden;touch-action:manipulation}
+#gameWrap{position:relative;width:100%;max-width:800px;aspect-ratio:4/3}
+canvas{display:block;width:100%;height:100%;background:#e8dcc8;border-radius:8px;image-rendering:pixelated}
+/* 开场 */
+#splash{position:absolute;inset:0;background:#1a1410;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:100;cursor:pointer;border-radius:8px}
+#splash .big{font-size:clamp(15px,3.2vw,26px);color:#c9852e;font-weight:bold;letter-spacing:1px;margin-bottom:14px;opacity:0;transition:opacity 1.2s;text-align:center;padding:0 10px}
+#splash .small{font-size:clamp(11px,1.8vw,16px);color:#8a6a40;letter-spacing:3px;margin-bottom:36px;opacity:0;transition:opacity 1.2s .6s}
+#splash .slogan{font-size:clamp(13px,2.2vw,20px);color:#fdf6e8;letter-spacing:3px;opacity:0;transition:opacity 1.2s 1.2s;text-align:center;padding:0 10px}
+#splash .hint{font-size:12px;color:#5a4a3a;margin-top:50px;opacity:0;transition:opacity 1s 2s}
+/* 选择界面 */
+.screen{position:absolute;inset:0;background:#1a1410;display:none;flex-direction:column;justify-content:center;align-items:center;z-index:90;border-radius:8px;padding:16px;overflow-y:auto}
+.screen.show{display:flex}
+.screen h1{color:#c9852e;font-size:20px;margin-bottom:16px;letter-spacing:2px}
+.charGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:520px}
+.charCard{background:#2a2018;border:2px solid #5a4a3a;border-radius:6px;padding:12px 6px;text-align:center;cursor:pointer;transition:.15s}
+.charCard:hover,.charCard.sel{border-color:#c9852e;background:#3a2a1a;box-shadow:0 0 12px rgba(201,133,46,.5)}
+.charCard .ico{font-size:28px;margin-bottom:4px}
+.charCard .nm{color:#fdf6e8;font-size:13px;font-weight:bold}
+.charCard .ds{color:#a08060;font-size:10px;margin-top:2px}
+.mapGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;width:100%;max-width:520px}
+.mapCard{background:#2a2018;border:2px solid #5a4a3a;border-radius:6px;padding:14px;cursor:pointer;transition:.15s}
+.mapCard:hover,.mapCard.sel{border-color:#c9852e;background:#3a2a1a}
+.mapCard.locked{opacity:.45;cursor:not-allowed}
+.mapCard .nm{color:#fdf6e8;font-size:14px;font-weight:bold;margin-bottom:4px}
+.mapCard .ds{color:#a08060;font-size:11px;line-height:1.5}
+.mapCard .sub{color:#6a5a3a;font-size:10px;margin-top:6px}
+.startBtn{margin-top:18px;padding:12px 40px;border:none;border-radius:6px;background:#c9852e;color:#fff;font-size:15px;font-weight:bold;cursor:pointer;font-family:inherit;letter-spacing:2px}
+.startBtn:disabled{background:#555;cursor:not-allowed}
+/* 游戏内 */
+#hud{position:absolute;top:8px;left:8px;right:8px;display:none;justify-content:space-between;pointer-events:none;z-index:5}
+.hudBox{background:rgba(26,20,16,.92);border:2px solid #5a4a3a;border-radius:4px;padding:6px 10px;font-size:11px;color:#fdf6e8;font-weight:bold;pointer-events:auto;cursor:pointer;font-family:inherit}
+.hudBox.gold{color:#c9852e}
+#tip{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(26,20,16,.9);color:#fdf6e8;padding:7px 16px;border-radius:4px;font-size:12px;display:none;z-index:5;white-space:nowrap;border:1px solid #5a4a3a}
+#tip.show{display:block}
+#joystick{position:absolute;bottom:16px;left:16px;width:100px;height:100px;border-radius:50%;background:rgba(90,62,27,.15);border:2px solid rgba(90,62,27,.3);z-index:6;touch-action:none;display:none}
+#joyKnob{position:absolute;top:50%;left:50%;width:44px;height:44px;border-radius:50%;background:rgba(201,133,46,.7);transform:translate(-50%,-50%);pointer-events:none}
+#backBtn{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(26,20,16,.92);border:2px solid #5a4a3a;border-radius:4px;padding:5px 14px;font-size:11px;color:#fdf6e8;cursor:pointer;z-index:5;font-family:inherit;display:none}
+/* 弹窗 */
+.overlay{position:absolute;inset:0;background:rgba(10,8,5,.82);display:none;justify-content:center;align-items:center;z-index:10;border-radius:8px}
+.overlay.show{display:flex}
+.panel{background:#fdf6e8;border-radius:6px;padding:18px;width:88%;max-height:86%;overflow-y:auto;border:3px solid #c9a96e}
+.panel h2{font-size:17px;color:#5a3e1b;margin-bottom:10px;font-family:"Courier New",monospace}
+.panel p{font-size:13px;color:#4a3a28;line-height:1.7;margin-bottom:6px;white-space:pre-wrap;font-family:"PingFang SC","Microsoft YaHei",sans-serif}
+.npcName{color:#a0522d;font-weight:bold}
+.btnRow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{flex:1;min-width:90px;padding:10px 6px;border:none;border-radius:4px;background:#c9852e;color:#fff;font-size:13px;font-weight:bold;cursor:pointer;font-family:inherit}
+.btn.ghost{background:#e8dcc8;color:#5a3e1b}
+.opt{display:block;width:100%;text-align:left;padding:11px 12px;margin-bottom:8px;border:2px solid #d8c8a8;border-radius:4px;background:#fff;font-size:13px;color:#3a2a18;cursor:pointer;font-family:inherit}
+.opt.correct{border-color:#3a8a3a;background:#e6f5e6}
+.opt.wrong{border-color:#c03a3a;background:#fdeaea}
+.noteCard{background:#fffdf6;border-left:5px solid #c9852e;border-radius:4px;padding:12px;margin-bottom:10px}
+.noteCard h3{font-size:14px;color:#5a3e1b;margin-bottom:6px}
+.noteCard .body{font-size:12px;color:#4a3a28;line-height:1.8}
+.noteCard .cold{font-size:11px;color:#8a6a40;margin-top:6px;padding-top:6px;border-top:1px dashed #ddd;font-style:italic}
+.fragment{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:56px;animation:floatUp 1.6s ease-out forwards;z-index:20;pointer-events:none}
+@keyframes floatUp{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}30%{opacity:1;transform:translate(-50%,-80%) scale(1.2)}100%{opacity:0;transform:translate(-50%,-180%) scale(1)}}
+/* 双端适配 */
+@media (hover:hover) and (pointer:fine){
+  #joystick{display:none !important}
+}
+@media (max-width:600px){
+  .panel{padding:14px;width:94%}
+  .btn{padding:13px 6px;font-size:14px;min-width:80px}
+  .opt{padding:14px 12px;font-size:14px}
+  .charGrid{grid-template-columns:repeat(2,1fr)}
+  .mapGrid{grid-template-columns:1fr}
+  #hud .hudBox{padding:8px 10px;font-size:12px}
+  .charCard .ico{font-size:32px}
+  .screen h1{font-size:18px}
+}
+@media (max-height:500px){
+  #gameWrap{max-width:100vw;max-height:100vh}
+  #joystick{width:80px;height:80px;bottom:10px;left:10px}
+  #joyKnob{width:36px;height:36px}
+}
+</style>
+</head>
+<body>
+<div id="gameWrap">
+  <canvas id="cv" width="800" height="600"></canvas>
+
+  <!-- 开场 -->
+  <div id="splash">
+    <div class="big">开发者：冯言冯语听冯说科普团队</div>
+    <div class="small">Feng Talks Science</div>
+    <div class="slogan">用科学看世界，用思考辨真伪！</div>
+    <div class="hint">点击屏幕开始</div>
+  </div>
+
+  <!-- 角色选择 -->
+  <div class="screen" id="charScreen">
+    <h1>选择你的角色</h1>
+    <div class="charGrid" id="charGrid"></div>
+    <button class="startBtn" id="charNext" disabled>下一步：选地图</button>
+  </div>
+
+  <!-- 地图选择 -->
+  <div class="screen" id="mapScreen">
+    <h1>选择探索地图</h1>
+    <div class="mapGrid" id="mapGrid"></div>
+    <button class="startBtn" id="mapStart" disabled>开始冒险</button>
+  </div>
+
+  <!-- 游戏内 HUD -->
+  <div id="hud">
+    <div class="hudBox gold" id="hudRep" onclick="showNotes()">声望 0</div>
+    <div style="display:flex;gap:6px">
+      <div class="hudBox gold" id="hudFrag" onclick="showFragments()">碎片 0</div>
+      <div class="hudBox" onclick="goHome()">🏠</div>
+    </div>
+  </div>
+  <div id="tip"></div>
+  <button id="backBtn" onclick="backToMap()">← 回地图</button>
+  <div id="joystick"><div id="joyKnob"></div></div>
+
+  <!-- 对话 -->
+  <div class="overlay" id="dlgOverlay"><div class="panel">
+    <h2 id="dlgName"></h2><p id="dlgText"></p><div class="btnRow" id="dlgBtns"></div>
+  </div></div>
+
+  <!-- 答题 -->
+  <div class="overlay" id="quizOverlay"><div class="panel">
+    <h2 id="quizTitle"></h2><p id="quizQ"></p><div id="quizOpts"></div>
+    <p id="quizHint" style="color:#c03a3a;font-size:12px;display:none"></p>
+    <div class="btnRow" id="quizBtns" style="display:none"><button class="btn" id="quizNext">继续</button></div>
+  </div></div>
+
+  <!-- 笔记 -->
+  <div class="overlay" id="notesOverlay"><div class="panel">
+    <h2>📖 掌柜笔记</h2><div id="notesList"></div>
+    <div class="btnRow"><button class="btn ghost" onclick="closeOverlay('notesOverlay')">关闭</button></div>
+  </div></div>
+
+  <!-- 碎片 -->
+  <div class="overlay" id="fragOverlay"><div class="panel">
+    <h2>🔮 规律碎片</h2><div id="fragList"></div>
+    <div class="btnRow"><button class="btn ghost" onclick="closeOverlay('fragOverlay')">关闭</button></div>
+  </div></div>
+</div>
+
+<script>
+/* ========== 双端检测 ========== */
+var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+/* ========== 数据层 ========== */
+var CHARS=[
+  {id:'wu',name:'小物',icon:'🔧',desc:'沉稳·物理',color:'#d4a017',bonus:'勘察多1个物理线索',subject:'物理'},
+  {id:'hua',name:'小化',icon:'🧪',desc:'好奇·化学',color:'#7a9a3a',bonus:'实验失败不扣精力',subject:'化学'},
+  {id:'sheng',name:'小生',icon:'🌿',desc:'温和·生物',color:'#3a9a6a',bonus:'勘察多1个生物线索',subject:'生物'}
+];
+
+var MAPS=[
+  {id:'factory',name:'铁锈工厂',sub:'物理+化学',icon:'🏭',desc:'管道泄漏、电路过载、金属腐蚀',unlock:true},
+  {id:'park',name:'绿野生态园',sub:'生物',icon:'🌳',desc:'水华爆发、外来物种、候鸟迷路',unlock:true},
+  {id:'hospital',name:'白塔医院',sub:'生物+化学',icon:'🏥',desc:'疫苗冷链、消毒配比、耐药菌',unlock:false}
+];
+
+var ORDERS={
+  f1:{id:'f1',map:'factory',title:'管道冻裂',type:'main',
+    clues:['管道外壁结霜','最近气温骤降','管内是水不是防冻液'],
+    tools:['物理箱（测压强）','化学箱（测成分）','生物箱（查微生物）'],
+    fixTool:'物理箱',
+    fixDesc:'你给管道加保温层、换防冻液——水结冰体积膨胀约9%，这是冻裂的元凶。',
+    quiz:[
+      {q:'水结冰后体积会怎样？',opts:['变小','不变','变大'],ans:2,hint:'冰会浮在水面上，说明它比水轻，同质量体积更大。'},
+      {q:'为什么水管冬天容易裂？',opts:['水结冰膨胀撑裂','铁变脆了','水压变小'],ans:0,hint:'冰的密度比水小，同质量体积更大。'}
+    ],
+    note:{title:'水为什么会“撑破”管子',body:'水结冰时，分子排列成六角形晶体，体积反而膨胀约9%。管道里的水结冰，硬把管子撑裂。',cold:'冷知识：冰的密度约0.9g/cm³，所以冰山能浮在水上。'},
+    frag:{id:'frag_phys_1',name:'物理·管道碎片',icon:'🔩'}},
+
+  f2:{id:'f2',map:'factory',title:'电路过载起火',type:'main',
+    clues:['保险丝熔断','电线发热有焦味','同时开了太多大功率设备'],
+    tools:['物理箱（查电流）','化学箱（查燃烧）','生物箱（查微生物）'],
+    fixTool:'物理箱',
+    fixDesc:'你算出总功率超载，换了合适保险丝并建议错峰用电——焦耳定律告诉你，电流越大发热越多。',
+    quiz:[
+      {q:'电线发热和什么有关？',opts:['电流大小','颜色','长度'],ans:0,hint:'焦耳定律：Q=I²Rt，电流越大发热越多。'},
+      {q:'保险丝为什么能防火灾？',opts:['它很贵','电流过大时先熔断','它会发光'],ans:1,hint:'保险丝是“牺牲自己”的保护装置。'}
+    ],
+    note:{title:'保险丝为什么能救命',body:'电流通过导体发热，功率越大发热越多。保险丝熔点低，电流过大时先熔断，切断电路。',cold:'冷知识：焦耳定律 Q=I²Rt 是电热毯、电饭锅的工作原理。'},
+    frag:{id:'frag_phys_2',name:'物理·电路碎片',icon:'⚡'}},
+
+  f3:{id:'f3',map:'factory',title:'铁架腐蚀',type:'main',
+    clues:['铁架表面红褐色','车间潮湿','附近有酸性废水'],
+    tools:['化学箱（测酸碱）','物理箱（测受力）','生物箱（查微生物）'],
+    fixTool:'化学箱',
+    fixDesc:'你测出酸性环境加速腐蚀，除锈后涂防锈漆——铁和氧气、水反应生成三氧化二铁。',
+    quiz:[
+      {q:'铁锈的主要成分是？',opts:['三氧化二铁','碳酸钙','氯化钠'],ans:0,hint:'铁锈是红褐色的，含铁和氧。'},
+      {q:'什么环境会加速铁生锈？',opts:['干燥','潮湿+酸性','真空'],ans:1,hint:'水和酸都在帮铁“氧化”。'}
+    ],
+    note:{title:'铁为什么会锈',body:'铁和空气中的氧气、水反应生成三氧化二铁。潮湿、酸性环境会加速这个过程。',cold:'冷知识：火星表面红色也是三氧化二铁。'},
+    frag:{id:'frag_chem_1',name:'化学·腐蚀碎片',icon:'🧪'}},
+
+  f4:{id:'f4',map:'factory',title:'老工人的秘密',type:'side',
+    clues:['仓库角落有旧日记','日记提到“那年管道爆过”','墙上有一张旧照片'],
+    tools:['化学箱（测残留）','物理箱（查结构）','生物箱（查霉菌）'],
+    fixTool:'化学箱',
+    fixDesc:'你发现旧管道残留酸性物质，提醒厂长做全面检测。',
+    quiz:[
+      {q:'旧管道残留酸性物质说明什么？',opts:['曾经输送过酸','管道很干净','管道是新的'],ans:0,hint:'残留物是历史的“证据”。'}
+    ],
+    note:{title:'从残留物读历史',body:'管道内壁的残留物能告诉我们它输送过什么。酸性残留会持续腐蚀管壁。',cold:'冷知识：考古学家也靠残留物分析古代容器装过什么。'},
+    frag:{id:'frag_chem_2',name:'化学·残留碎片',icon:'🔬'}},
+
+  p1:{id:'p1',map:'park',title:'水华爆发',type:'main',
+    clues:['水面绿色浮沫','上游有养鸡场','鱼浮头呼吸'],
+    tools:['生物箱（查藻类）','化学箱（测水质）','物理箱（测流速）'],
+    fixTool:'生物箱',
+    fixDesc:'你用显微镜发现藻类爆发，引流换水、种水草控藻。',
+    quiz:[
+      {q:'水华爆发最可能的原因？',opts:['氮磷过多','水太干净','水温太低'],ans:0,hint:'养鸡场粪水带来氮和磷。'},
+      {q:'鱼为什么浮头？',opts:['藻类夜里耗氧','鱼想晒太阳','水太甜'],ans:0,hint:'藻类白天产氧，夜里呼吸耗氧。'}
+    ],
+    note:{title:'水为什么会“富”',body:'氮、磷流入水体，藻类疯长，夜里耗氧，鱼缺氧浮头。这叫水体富营养化。',cold:'冷知识：太湖、滇池都发生过严重富营养化。'},
+    frag:{id:'frag_bio_1',name:'生物·水体碎片',icon:'🌿'}},
+
+  p2:{id:'p2',map:'park',title:'外来鱼入侵',type:'main',
+    clues:['池塘出现陌生鱼种','本地小鱼变少','有人放生过宠物鱼'],
+    tools:['生物箱（查食物链）','化学箱（测水质）','物理箱（测水温）'],
+    fixTool:'生物箱',
+    fixDesc:'你识别出外来鱼缺乏天敌，建议捕捞隔离。',
+    quiz:[
+      {q:'外来物种为什么容易泛滥？',opts:['缺乏天敌','长得好看','会说话'],ans:0,hint:'在新环境里没有天敌制约。'},
+      {q:'放生宠物鱼可能造成？',opts:['生态入侵','水质变好','鱼更开心'],ans:0,hint:'“放生”有时是生态灾难的开始。'}
+    ],
+    note:{title:'放生为什么可能是灾难',body:'外来物种进入新环境，若缺乏天敌，会大量繁殖、挤占本地物种生存空间。',cold:'冷知识：福寿螺、水葫芦都是外来入侵物种。'},
+    frag:{id:'frag_bio_2',name:'生物·生态碎片',icon:'🐟'}},
+
+  p3:{id:'p3',map:'park',title:'候鸟迷路',type:'side',
+    clues:['候鸟盘旋不落','附近新装了强光广告牌','往年这时早该南飞'],
+    tools:['生物箱（查迁徙）','物理箱（查光污染）','化学箱（测空气）'],
+    fixTool:'生物箱',
+    fixDesc:'你判断强光干扰了候鸟的导航，建议夜间调暗灯光。',
+    quiz:[
+      {q:'候鸟靠什么导航？',opts:['地磁和星光','看路牌','问路人'],ans:0,hint:'鸟类能感知地磁场。'},
+      {q:'强光为什么让候鸟迷路？',opts:['干扰导航','太热了','太亮了'],ans:0,hint:'人造光会“骗”过它们的导航系统。'}
+    ],
+    note:{title:'候鸟的“GPS”',body:'候鸟能感知地球磁场，也靠星光校准方向。城市强光会干扰这套系统。',cold:'冷知识：有些鸟能“看见”磁场。'},
+    frag:{id:'frag_bio_3',name:'生物·迁徙碎片',icon:'🕊️'}},
+
+  h1:{id:'h1',map:'hospital',title:'疫苗冷链断',type:'main',
+    clues:['冷藏柜温度记录中断','部分疫苗瓶身结冰','护士说停电过'],
+    tools:['生物箱（查疫苗）','化学箱（测温度）','物理箱（查制冷）'],
+    fixTool:'生物箱',
+    fixDesc:'你判断疫苗可能失效，建议报废并建立温度监控。',
+    quiz:[
+      {q:'疫苗为什么要冷链？',opts:['蛋白质怕热会变性','怕光','怕吵'],ans:0,hint:'疫苗里的蛋白质高温会“变形”失效。'},
+      {q:'结冰的疫苗还能用吗？',opts:['不能，可能已失效','能，冰一下更好','能，加热就行'],ans:0,hint:'反复冻融会破坏疫苗结构。'}
+    ],
+    note:{title:'疫苗为什么怕热',body:'疫苗里的抗原多是蛋白质，高温会让蛋白质变性，且不可逆。',cold:'冷知识：蛋白质变性就像鸡蛋煮熟，回不去了。'},
+    frag:{id:'frag_bio_4',name:'生物·免疫碎片',icon:'💉'}},
+
+  h2:{id:'h2',map:'hospital',title:'消毒液配比错',type:'main',
+    clues:['消毒液气味刺鼻','保洁员说“多加点更干净”','地面有腐蚀痕迹'],
+    tools:['化学箱（测浓度）','生物箱（查细菌）','物理箱（查温度）'],
+    fixTool:'化学箱',
+    fixDesc:'你测出浓度过高，稀释到标准比例。',
+    quiz:[
+      {q:'消毒液越浓越好吗？',opts:['不是，要按比例','是，越浓越干净','无所谓'],ans:0,hint:'浓度过高会腐蚀、伤人。'},
+      {q:'84消毒液主要成分是？',opts:['次氯酸钠','食盐','白糖'],ans:0,hint:'次氯酸钠，靠氧化杀灭微生物。'}
+    ],
+    note:{title:'消毒液不是越浓越好',body:'消毒液靠有效成分杀灭微生物，但浓度过高会腐蚀物体、刺激皮肤。',cold:'冷知识：84消毒液和洁厕灵混用会产生有毒氯气！'},
+    frag:{id:'frag_chem_3',name:'化学·消毒碎片',icon:'🧴'}},
+
+  h3:{id:'h3',map:'hospital',title:'耐药菌危机',type:'side',
+    clues:['病人用了很久抗生素','细菌培养皿出现耐药菌落','医生皱眉'],
+    tools:['生物箱（查耐药）','化学箱（查药物）','物理箱（查灭菌）'],
+    fixTool:'生物箱',
+    fixDesc:'你判断是抗生素滥用导致耐药菌，建议按疗程用药。',
+    quiz:[
+      {q:'耐药菌是怎么产生的？',opts:['自然选择','细菌变聪明了','抗生素过期'],ans:0,hint:'抗生素杀死敏感菌，耐药菌活下来。'},
+      {q:'为什么不能滥用抗生素？',opts:['会筛选出耐药菌','太贵了','味道不好'],ans:0,hint:'滥用等于帮耐药菌“训练”。'}
+    ],
+    note:{title:'细菌为什么越来越“强”',body:'抗生素杀死敏感细菌，少数耐药菌存活并繁殖，久而久之整个菌群都耐药。',cold:'冷知识：青霉素刚发现时几乎万能，现在很多细菌已耐药。'},
+    frag:{id:'frag_bio_5',name:'生物·耐药碎片',icon:'🦠'}}
+};
+
+/* ========== 状态 ========== */
+var state={reputation:0,fragments:[],notes:[],completedOrders:[],char:null,map:null};
+
+/* ========== 画面切换 ========== */
+function showScreen(id){
+  var ids=['charScreen','mapScreen'];
+  for(var i=0;i<ids.length;i++)document.getElementById(ids[i]).classList.remove('show');
+  if(id)document.getElementById(id).classList.add('show');
+}
+
+/* 开场 */
+(function(){
+  var sp=document.getElementById('splash');
+  var big=sp.querySelector('.big'),small=sp.querySelector('.small'),slogan=sp.querySelector('.slogan'),hint=sp.querySelector('.hint');
+  setTimeout(function(){big.style.opacity=1;},100);
+  setTimeout(function(){small.style.opacity=1;},700);
+  setTimeout(function(){slogan.style.opacity=1;},1400);
+  setTimeout(function(){hint.style.opacity=1;},2400);
+  sp.addEventListener('click',function(){
+    sp.style.transition='opacity .6s';sp.style.opacity=0;
+    setTimeout(function(){sp.style.display='none';buildCharScreen();showScreen('charScreen');},600);
+  });
+})();
+
+/* 角色选择 */
+function buildCharScreen(){
+  var grid=document.getElementById('charGrid');grid.innerHTML='';
+  for(var i=0;i<CHARS.length;i++){
+    (function(c){
+      var el=document.createElement('div');el.className='charCard';el.id='char_'+c.id;
+      el.innerHTML='<div class="ico">'+c.icon+'</div><div class="nm">'+c.name+'</div><div class="ds">'+c.desc+'</div>';
+      el.onclick=function(){
+        var all=grid.querySelectorAll('.charCard');
+        for(var k=0;k<all.length;k++)all[k].classList.remove('sel');
+        el.classList.add('sel');
+        state.char=c;
+        document.getElementById('charNext').disabled=false;
+      };
+      grid.appendChild(el);
+    })(CHARS[i]);
+  }
+  document.getElementById('charNext').onclick=function(){buildMapScreen();showScreen('mapScreen');};
+}
+
+/* 地图选择 */
+function buildMapScreen(){
+  var grid=document.getElementById('mapGrid');grid.innerHTML='';
+  for(var i=0;i<MAPS.length;i++){
+    (function(m){
+      var el=document.createElement('div');el.className='mapCard'+(m.unlock?'':' locked');
+      el.innerHTML='<div class="nm">'+m.icon+' '+m.name+'</div><div class="ds">'+m.desc+'</div><div class="sub">'+m.sub+'</div>';
+      if(m.unlock){
+        el.onclick=function(){
+          var all=grid.querySelectorAll('.mapCard');
+          for(var k=0;k<all.length;k++)all[k].classList.remove('sel');
+          el.classList.add('sel');
+          state.map=m;
+          document.getElementById('mapStart').disabled=false;
+        };
+      }
+      grid.appendChild(el);
+    })(MAPS[i]);
+  }
+  document.getElementById('mapStart').onclick=function(){
+    if(!state.map)return;
+    startGame();
+  };
+}
+
+/* ========== 游戏 ========== */
+var cv=document.getElementById('cv'),ctx=cv.getContext('2d'),W=800,H=600;
+var player={x:300,y:500,r:14,speed:3.2,dir:1,walkPhase:0};
+var camera={x:0,y:0};
+var keys={};
+var joy={active:false,dx:0,dy:0};
+var WORLD={w:1600,h:600};
+var npcs=[];
+var props=[];
+var running=false;
+
+function startGame(){
+  document.getElementById('splash').style.display='none';
+  showScreen(null);
+  document.getElementById('hud').style.display='flex';
+  document.getElementById('backBtn').style.display='block';
+  document.getElementById('joystick').style.display=isTouch?'block':'none';
+  document.getElementById('tip').style.display='block';
+  state.reputation=0;state.fragments=[];state.notes=[];state.completedOrders=[];
+  player.x=300;player.y=500;player.dir=1;
+  buildMap();
+  updateHud();
+  if(!running){running=true;lastTime=0;requestAnimationFrame(loop);}
+}
+
+function backToMap(){
+  running=false;
+  document.getElementById('hud').style.display='none';
+  document.getElementById('backBtn').style.display='none';
+  document.getElementById('joystick').style.display='none';
+  document.getElementById('tip').style.display='none';
+  document.getElementById('tip').classList.remove('show');
+  buildMapScreen();showScreen('mapScreen');
+}
+
+function goHome(){
+  running=false;
+  document.getElementById('hud').style.display='none';
+  document.getElementById('backBtn').style.display='none';
+  document.getElementById('joystick').style.display='none';
+  document.getElementById('tip').style.display='none';
+  document.getElementById('tip').classList.remove('show');
+  closeOverlay('dlgOverlay');
+  closeOverlay('quizOverlay');
+  closeOverlay('notesOverlay');
+  closeOverlay('fragOverlay');
+  state.char=null;state.map=null;
+  state.reputation=0;state.fragments=[];state.notes=[];state.completedOrders=[];
+  var cc=document.querySelectorAll('.charCard');
+  for(var i=0;i<cc.length;i++)cc[i].classList.remove('sel');
+  var mc=document.querySelectorAll('.mapCard');
+  for(var j=0;j<mc.length;j++)mc[j].classList.remove('sel');
+  document.getElementById('charNext').disabled=true;
+  document.getElementById('mapStart').disabled=true;
+  var sp=document.getElementById('splash');
+  sp.style.display='flex';
+  sp.style.opacity=1;
+  sp.querySelector('.big').style.opacity=1;
+  sp.querySelector('.small').style.opacity=1;
+  sp.querySelector('.slogan').style.opacity=1;
+  sp.querySelector('.hint').style.opacity=1;
+  showScreen(null);
+}
+
+/* 构建地图 */
+function buildMap(){
+  var m=state.map;props=[];npcs=[];
+  if(m.id==='factory'){
+    props=[
+      {id:'plant',x:180,y:380,w:120,h:100,color:'#8a6a3a'},
+      {id:'pipe',x:520,y:300,w:160,h:60,color:'#6a6a6a'},
+      {id:'tank',x:760,y:420,w:180,h:80,color:'#7a6a4a'},
+      {id:'stone',x:1150,y:460,w:60,h:40,color:'#9a9a8a'}
+    ];
+    npcs=[
+      {id:'n1',name:'老厂长',x:320,y:360,color:'#a0522d',r:20,orderId:'f1',idle:'管道冻裂了，急死人！'},
+      {id:'n2',name:'安全员',x:600,y:380,color:'#8a3a2a',r:20,orderId:'f2',idle:'电路冒烟，快看看！'},
+      {id:'n3',name:'年轻工程师',x:880,y:360,color:'#3a6a8a',r:20,orderId:'f3',idle:'铁架锈得厉害，咋整？'},
+      {id:'n4',name:'退休技工',x:1080,y:420,color:'#6a5a3a',r:18,orderId:'f4',idle:'仓库里有老物件，去瞧瞧？'}
+    ];
+  }else if(m.id==='park'){
+    props=[
+      {id:'pond',x:200,y:400,w:200,h:90,color:'#5a8ab0'},
+      {id:'tree',x:520,y:300,w:80,h:140,color:'#5a8a3a'},
+      {id:'grass',x:780,y:440,w:180,h:60,color:'#6a9a3a'},
+      {id:'stone',x:1150,y:460,w:60,h:40,color:'#9a9a8a'}
+    ];
+    npcs=[
+      {id:'n1',name:'园丁',x:300,y:360,color:'#6a8a3a',r:20,orderId:'p1',idle:'池塘水绿得吓人！'},
+      {id:'n2',name:'观鸟爱好者',x:580,y:360,color:'#5a7a9a',r:20,orderId:'p2',idle:'池塘里多了怪鱼。'},
+      {id:'n3',name:'环保志愿者',x:860,y:380,color:'#3a8a6a',r:20,orderId:'p3',idle:'候鸟今年不落这儿了。'}
+    ];
+  }else if(m.id==='hospital'){
+    props=[
+      {id:'ward',x:200,y:380,w:140,h:100,color:'#d8d0c0'},
+      {id:'pharm',x:520,y:320,w:120,h:80,color:'#c8b8a0'},
+      {id:'lab',x:780,y:380,w:140,h:100,color:'#b8c8d0'},
+      {id:'stone',x:1150,y:460,w:60,h:40,color:'#9a9a8a'}
+    ];
+    npcs=[
+      {id:'n1',name:'急诊医生',x:320,y:360,color:'#3a6a9a',r:20,orderId:'h1',idle:'疫苗冷链断了，糟了！'},
+      {id:'n2',name:'药剂师',x:600,y:360,color:'#8a5a3a',r:20,orderId:'h2',idle:'消毒液味儿太冲。'},
+      {id:'n3',name:'护士长',x:880,y:360,color:'#8a3a6a',r:20,orderId:'h3',idle:'这菌怎么杀不死？'}
+    ];
+  }
+}
+
+/* 输入 */
+document.addEventListener('keydown',function(e){keys[e.key.toLowerCase()]=true;});
+document.addEventListener('keyup',function(e){keys[e.key.toLowerCase()]=false;});
+document.addEventListener('keydown',function(e){
+  if(e.key.toLowerCase()==='e'&&running){
+    var n=findNearestNPC();if(n)talkTo(n);
+  }
+});
+cv.addEventListener('click',function(e){
+  if(!running)return;
+  var rect=cv.getBoundingClientRect();
+  var mx=(e.clientX-rect.left)/rect.width*W;
+  var my=(e.clientY-rect.top)/rect.height*H;
+  tryInteract(mx+camera.x,my+camera.y);
+});
+
+var joyEl=document.getElementById('joystick'),knobEl=document.getElementById('joyKnob'),joyId=null;
+function setKnob(dx,dy){
+  var maxR=30,len=Math.sqrt(dx*dx+dy*dy)||1,cl=Math.min(len,maxR);
+  var kx=dx/len*cl,ky=dy/len*cl;
+  knobEl.style.left='calc(50% + '+kx+'px)';knobEl.style.top='calc(50% + '+ky+'px)';
+  joy.dx=kx/maxR;joy.dy=ky/maxR;
+}
+joyEl.addEventListener('touchstart',function(e){
+  e.preventDefault();var t=e.changedTouches[0];joyId=t.identifier;joy.active=true;
+  var r=joyEl.getBoundingClientRect();setKnob(t.clientX-(r.left+r.width/2),t.clientY-(r.top+r.height/2));
+},{passive:false});
+joyEl.addEventListener('touchmove',function(e){
+  e.preventDefault();if(!joy.active)return;
+  var t=null;for(var i=0;i<e.changedTouches.length;i++)if(e.changedTouches[i].identifier===joyId)t=e.changedTouches[i];
+  if(!t)return;var r=joyEl.getBoundingClientRect();
+  setKnob(t.clientX-(r.left+r.width/2),t.clientY-(r.top+r.height/2));
+},{passive:false});
+function endJoy(){joy.active=false;joy.dx=0;joy.dy=0;joyId=null;setKnob(0,0);}
+joyEl.addEventListener('touchend',endJoy);
+joyEl.addEventListener('touchcancel',endJoy);
+
+/* 主循环 */
+var lastTime=0;
+function loop(t){
+  var dt=Math.min(50,t-lastTime)/16.67;lastTime=t;
+  update(dt);render();
+  if(running)requestAnimationFrame(loop);
+}
+
+function update(dt){
+  var dx=0,dy=0;
+  if(keys['a']||keys['arrowleft'])dx-=1;
+  if(keys['d']||keys['arrowright'])dx+=1;
+  if(keys['w']||keys['arrowup'])dy-=1;
+  if(keys['s']||keys['arrowdown'])dy+=1;
+  if(joy.active){dx=joy.dx;dy=joy.dy;}
+  if(dx||dy){
+    var len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;
+    var sp=player.speed*dt;
+    player.x+=dx*sp;player.y+=dy*sp;
+    if(dx>0.1)player.dir=1;else if(dx<-0.1)player.dir=-1;
+    player.walkPhase+=dt*0.4;
+  }else player.walkPhase*=0.9;
+  player.x=Math.max(player.r,Math.min(WORLD.w-player.r,player.x));
+  player.y=Math.max(player.r+80,Math.min(H-player.r-40,player.y));
+  var targetX=player.x-W/2;
+  camera.x=Math.max(0,Math.min(WORLD.w-W,targetX));camera.y=0;
+
+  var near=findNearestNPC(),tipEl=document.getElementById('tip');
+  if(near){
+    tipEl.textContent=isTouch?('点击 '+near.name+' 对话'):('按 E 或点击 '+near.name+' 对话');
+    tipEl.classList.add('show');
+  }else{
+    var hasEgg=false;
+    for(var i=0;i<state.notes.length;i++)if(state.notes[i].id==='egg_stone')hasEgg=true;
+    var st=null;
+    for(var j=0;j<props.length;j++)if(props[j].id==='stone')st=props[j];
+    if(st&&!hasEgg){
+      var scx=st.x+st.w/2,scy=st.y+st.h/2;
+      if(Math.sqrt((scx-player.x)*(scx-player.x)+(scy-player.y)*(scy-player.y))<70){
+        tipEl.textContent='点击这块怪石看看';tipEl.classList.add('show');
+      }else tipEl.classList.remove('show');
+    }else tipEl.classList.remove('show');
+  }
+}
+
+function findNearestNPC(){
+  for(var i=0;i<npcs.length;i++){
+    var n=npcs[i];
+    var d=Math.sqrt((n.x-player.x)*(n.x-player.x)+(n.y-player.y)*(n.y-player.y));
+    if(d<n.r+player.r+30)return n;
+  }
+  return null;
+}
+
+/* 渲染 */
+function render(){
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#e8dcc8';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(-camera.x,0);
+  ctx.fillStyle='#d8cca8';ctx.fillRect(0,H-70,WORLD.w,70);
+  ctx.fillStyle='#c8bc98';
+  for(var x=0;x<WORLD.w;x+=40)ctx.fillRect(x,H-70,2,10);
+  for(var i=0;i<props.length;i++)drawProp(props[i]);
+  for(var j=0;j<npcs.length;j++)drawNPC(npcs[j]);
+  drawPlayer();
+  ctx.restore();
+}
+
+function drawProp(p){
+  var cx=p.x,cy=p.y;
+  if(p.id==='stone'){
+    ctx.fillStyle=p.color;ctx.beginPath();ctx.ellipse(cx+p.w/2,cy+p.h/2,p.w/2,p.h/2,0,0,7);ctx.fill();
+    ctx.fillStyle='#6a6a5a';ctx.beginPath();ctx.arc(cx+p.w/2-8,cy+p.h/2-5,6,0,7);ctx.fill();
+  }else if(p.id==='tree'){
+    ctx.fillStyle='#6a4a2a';ctx.fillRect(cx+p.w/2-8,cy+p.h-50,16,50);
+    ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(cx+p.w/2,cy+40,45,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+p.w/2-30,cy+70,30,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(cx+p.w/2+30,cy+70,30,0,7);ctx.fill();
+  }else if(p.id==='pond'){
+    ctx.fillStyle=p.color;ctx.beginPath();ctx.ellipse(cx+p.w/2,cy+p.h/2,p.w/2,p.h/2,0,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=2;
+    for(var k=0;k<3;k++){ctx.beginPath();ctx.arc(cx+p.w/2,cy+p.h/2,20+k*18,0.3,2.3);ctx.stroke();}
+  }else{
+    ctx.fillStyle=p.color;ctx.fillRect(cx,cy,p.w,p.h);
+    ctx.strokeStyle='#5a4a3a';ctx.lineWidth=2;ctx.strokeRect(cx,cy,p.w,p.h);
+  }
+}
+
+function drawNPC(n){
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(n.x,n.y+n.r-2,n.r*0.9,6,0,0,7);ctx.fill();
+  ctx.fillStyle=n.color;ctx.fillRect(n.x-n.r,n.y-n.r,n.r*2,n.r*2);
+  ctx.fillStyle='#f0d0a0';ctx.fillRect(n.x-n.r*0.7,n.y-n.r*1.7,n.r*1.4,n.r*1.4);
+  ctx.fillStyle='#333';ctx.fillRect(n.x-5,n.y-n.r*1.4,3,3);ctx.fillRect(n.x+2,n.y-n.r*1.4,3,3);
+  ctx.fillStyle='#3a2a18';ctx.font='bold 11px "Courier New"';ctx.textAlign='center';
+  ctx.fillText(n.name,n.x,n.y-n.r*2.2);ctx.textAlign='left';
+  var d=Math.sqrt((n.x-player.x)*(n.x-player.x)+(n.y-player.y)*(n.y-player.y));
+  if(d<n.r+player.r+30){
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(n.x,n.y-n.r*2.8,10,0,7);ctx.fill();
+    ctx.strokeStyle='#c9852e';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#c9852e';ctx.font='bold 14px "Courier New"';ctx.textAlign='center';
+    ctx.fillText('!',n.x,n.y-n.r*2.75);ctx.textAlign='left';
+  }
+}
+
+function drawPlayer(){
+  var bob=Math.sin(player.walkPhase*8)*2,y=player.y+bob;
+  var c=state.char?state.char.color:'#d4a017';
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(player.x,player.y+player.r-2,player.r*0.9,5,0,0,7);ctx.fill();
+  ctx.fillStyle=c;ctx.fillRect(player.x-player.r,y-player.r,player.r*2,player.r*2);
+  ctx.fillStyle='#f0d0a0';ctx.fillRect(player.x-player.r*0.7,y-player.r*1.7,player.r*1.4,player.r*1.4);
+  ctx.fillStyle='#333';ctx.fillRect(player.x-5+player.dir*2,y-player.r*1.4,3,3);ctx.fillRect(player.x+2+player.dir*2,y-player.r*1.4,3,3);
+  ctx.fillStyle='#5a3e1b';ctx.font='bold 11px "Courier New"';ctx.textAlign='center';
+  var nm=state.char?state.char.name:'小物';
+  ctx.fillText(nm,player.x,y-player.r*2.2);ctx.textAlign='left';
+}
+
+function tryInteract(wx,wy){
+  for(var i=0;i<npcs.length;i++){
+    var n=npcs[i];
+    var d=Math.sqrt((n.x-wx)*(n.x-wx)+(n.y-wy)*(n.y-wy));
+    if(d<n.r+20){talkTo(n);return;}
+  }
+  for(var j=0;j<props.length;j++){
+    var p=props[j];var cx=p.x+p.w/2,cy=p.y+p.h/2;
+    if(Math.abs(wx-cx)<p.w/2+15&&Math.abs(wy-cy)<p.h/2+15){
+      if(p.id==='stone')triggerStoneEgg();return;
+    }
+  }
+}
+
+/* 对话 */
+function talkTo(npc){
+  var order=ORDERS[npc.orderId];
+  if(!order){showDialog(npc.name,npc.idle,[{label:'告辞',fn:closeDialog}]);return;}
+  var done=state.completedOrders.indexOf(order.id)>=0;
+  if(done){
+    showDialog(npc.name,'多亏你了，这单修得漂亮！',[
+      {label:'再接一单',fn:function(){startOrder(order.id);}},
+      {label:'告辞',fn:closeDialog}
+    ]);
+  }else{
+    var type=order.type==='main'?'【主线】':'【支线】';
+    showDialog(npc.name,npc.idle+'\n\n'+type+order.title,[
+      {label:'接单！',fn:function(){startOrder(order.id);}},
+      {label:'先看看',fn:closeDialog}
+    ]);
+  }
+}
+
+function showDialog(name,text,buttons){
+  document.getElementById('dlgName').innerHTML='<span class="npcName">'+name+'</span>';
+  document.getElementById('dlgText').textContent=text;
+  var row=document.getElementById('dlgBtns');row.innerHTML='';
+  for(var i=0;i<buttons.length;i++){
+    (function(b){
+      var el=document.createElement('button');el.className='btn';el.textContent=b.label;el.onclick=b.fn;row.appendChild(el);
+    })(buttons[i]);
+  }
+  openOverlay('dlgOverlay');
+}
+function closeDialog(){closeOverlay('dlgOverlay');}
+
+/* 订单 */
+var currentOrder=null,quizIndex=0,quizAnswered=false;
+
+function startOrder(orderId){
+  var order=ORDERS[orderId];if(!order)return;
+  currentOrder=order;
+  var txt='【'+(order.type==='main'?'主线':'支线')+'：'+order.title+'】\n\n勘察现场——\n\n';
+  for(var i=0;i<order.clues.length;i++)txt+='  🔍 '+order.clues[i]+'\n';
+  txt+='\n选哪个工具箱？';
+  var btns=[];
+  for(var j=0;j<order.tools.length;j++){
+    (function(tool){btns.push({label:tool,fn:function(){chooseTool(tool,order);}});})(order.tools[j]);
+  }
+  showDialog('勘察现场',txt,btns);
+}
+
+function chooseTool(tool,order){
+  var ok=tool.indexOf(order.fixTool)===0;
+  if(ok){
+    showDialog('动手修',order.fixDesc+'\n\n✅ 故障排除！',[{label:'讲讲解法',fn:function(){startQuiz(order);}}]);
+  }else{
+    showDialog('动手修','你用'+tool+'试了半天，故障没排除。\n\n再想想，这故障更适合哪个学科？',[
+      {label:'重新选',fn:function(){startOrder(order.id);}},
+      {label:'先离开',fn:closeDialog}
+    ]);
+  }
+}
+
+function startQuiz(order){quizIndex=0;showQuizQuestion(order);}
+
+function showQuizQuestion(order){
+  var q=order.quiz[quizIndex];quizAnswered=false;
+  document.getElementById('quizTitle').textContent='规律验证 '+(quizIndex+1)+'/'+order.quiz.length;
+  document.getElementById('quizQ').textContent=q.q;
+  var optsEl=document.getElementById('quizOpts');optsEl.innerHTML='';
+  var hintEl=document.getElementById('quizHint');hintEl.style.display='none';
+  document.getElementById('quizBtns').style.display='none';
+  document.getElementById('quizNext').textContent='继续';
+  for(var i=0;i<q.opts.length;i++){
+    (function(idx){
+      var b=document.createElement('button');b.className='opt';b.textContent=q.opts[idx];
+      b.onclick=function(){
+        if(quizAnswered)return;quizAnswered=true;
+        var all=optsEl.querySelectorAll('.opt');
+        for(var k=0;k<all.length;k++){
+          all[k].disabled=true;
+          if(k===q.ans)all[k].classList.add('correct');
+          else if(k===idx)all[k].classList.add('wrong');
+        }
+        if(idx===q.ans){
+          hintEl.style.display='none';
+          if(quizIndex===order.quiz.length-1){
+            document.getElementById('quizNext').textContent='完成订单！';
+            document.getElementById('quizNext').onclick=function(){finishOrder(order);};
+          }else{
+            document.getElementById('quizNext').onclick=function(){quizIndex++;showQuizQuestion(order);};
+          }
+          document.getElementById('quizBtns').style.display='flex';
+        }else{
+          hintEl.textContent='💡 '+q.hint;hintEl.style.display='block';
+          setTimeout(function(){
+            for(var k=0;k<all.length;k++){all[k].disabled=false;all[k].classList.remove('wrong','correct');}
+            quizAnswered=false;
+          },1600);
+        }
+      };
+      optsEl.appendChild(b);
+    })(i);
+  }
+  openOverlay('quizOverlay');
+}
+
+function finishOrder(order){
+  closeOverlay('quizOverlay');
+  if(state.completedOrders.indexOf(order.id)<0){
+    state.completedOrders.push(order.id);state.reputation+=10;
+    var hasNote=false;for(var i=0;i<state.notes.length;i++)if(state.notes[i].title===order.note.title)hasNote=true;
+    if(!hasNote)state.notes.push({id:order.frag.id+'_note',title:order.note.title,body:order.note.body,cold:order.note.cold});
+    var hasFrag=false;for(var j=0;j<state.fragments.length;j++)if(state.fragments[j].id===order.frag.id)hasFrag=true;
+    if(!hasFrag)state.fragments.push(order.frag);
+    updateHud();showFragmentAnim(order.frag.icon);
+    setTimeout(function(){
+      showDialog('📖 掌柜笔记解锁','《'+order.note.title+'》已记入笔记。',[
+        {label:'读笔记',fn:function(){closeDialog();showNotes();}},
+        {label:'继续探索',fn:closeDialog}
+      ]);
+    },800);
+    if(order.map==='factory'&&allMainDone('factory'))MAPS[2].unlock=true;
+  }else{
+    showDialog('委托人','这单你已经修过啦！',[{label:'好',fn:closeDialog}]);
+  }
+}
+
+function allMainDone(mapId){
+  for(var k in ORDERS){
+    if(ORDERS[k].map===mapId&&ORDERS[k].type==='main'&&state.completedOrders.indexOf(ORDERS[k].id)<0)return false;
+  }
+  return true;
+}
+
+/* 彩蛋 */
+function triggerStoneEgg(){
+  var has=false;for(var i=0;i<state.notes.length;i++)if(state.notes[i].id==='egg_stone')has=true;
+  if(has){showDialog('怪石','这块浮石静静地浮在水面上。',[{label:'离开',fn:closeDialog}]);return;}
+  state.notes.push({id:'egg_stone',title:'会浮的石头',body:'这块石头表面有好多小孔，像海绵。这是火山喷发时岩浆急速冷却，气体逸出留下的气孔。',cold:'冷知识：这叫浮石，密度比水小，能浮在水面上。'});
+  showFragmentAnim('🪨');
+  showDialog('🔍 隐藏发现','你捡起一块怪石，发现它能浮在水面上！',[
+    {label:'读一读',fn:function(){closeDialog();showNotes();}},
+    {label:'继续走',fn:closeDialog}
+  ]);
+}
+
+/* UI */
+function openOverlay(id){document.getElementById(id).classList.add('show');}
+function closeOverlay(id){document.getElementById(id).classList.remove('show');}
+function updateHud(){
+  document.getElementById('hudRep').textContent='声望 '+state.reputation;
+  document.getElementById('hudFrag').textContent='碎片 '+state.fragments.length;
+}
+function showNotes(){
+  var list=document.getElementById('notesList');
+  if(state.notes.length===0){list.innerHTML='<p style="color:#a08060;text-align:center;padding:20px;">还没有笔记。</p>';}
+  else{
+    var html='';
+    for(var i=0;i<state.notes.length;i++){
+      var n=state.notes[i];
+      html+='<div class="noteCard"><h3>'+n.title+'</h3><div class="body">'+n.body+'</div>';
+      if(n.cold)html+='<div class="cold">'+n.cold+'</div>';
+      html+='</div>';
+    }
+    list.innerHTML=html;
+  }
+  openOverlay('notesOverlay');
+}
+function showFragments(){
+  var list=document.getElementById('fragList');
+  var html='';
+  if(state.fragments.length===0){html='<p style="color:#a08060;text-align:center;padding:20px;">还没有碎片。</p>';}
+  else{
+    for(var i=0;i<state.fragments.length;i++){
+      var f=state.fragments[i];
+      html+='<div style="padding:12px;border:2px solid #c9852e;border-radius:6px;margin-bottom:8px;text-align:center;"><div style="font-size:32px;">'+f.icon+'</div><div style="font-size:12px;color:#5a3e1b;margin-top:4px;">'+f.name+'</div></div>';
+    }
+  }
+  list.innerHTML=html;openOverlay('fragOverlay');
+}
+function showFragmentAnim(icon){
+  var el=document.createElement('div');el.className='fragment';el.textContent=icon;
+  document.getElementById('gameWrap').appendChild(el);
+  setTimeout(function(){el.remove();},1700);
+}
+</script>
+</body>
+</html>
